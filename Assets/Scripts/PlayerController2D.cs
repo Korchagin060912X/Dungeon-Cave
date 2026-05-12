@@ -13,6 +13,8 @@ public class PlayerController2D : MonoBehaviour
     [SerializeField] private float runMultiplier = 1.2f;
     [SerializeField] private float crouchSpeedMultiplier = 0.5f;
     [SerializeField] private float jumpForce = 21f;
+    [SerializeField] private float jumpBufferTime = 0.15f;
+    [SerializeField] private float coyoteTime = 0.12f;
 
     [Header("Run Stamina")]
     [SerializeField] private float maxStamina = 5f;
@@ -43,6 +45,8 @@ public class PlayerController2D : MonoBehaviour
     private bool externalCrouchHeld;
     private float stamina;
     private Vector3 initialScale;
+    private float jumpBufferTimer;
+    private float coyoteTimer;
 
     public bool IsCrouching => isCrouching;
     public bool IsTired => isTired;
@@ -66,6 +70,11 @@ public class PlayerController2D : MonoBehaviour
         if (GetJumpPressed())
         {
             jumpPressed = true;
+            jumpBufferTimer = jumpBufferTime;
+        }
+        else
+        {
+            jumpBufferTimer -= Time.deltaTime;
         }
 
         HandleCrouchInput();
@@ -75,6 +84,14 @@ public class PlayerController2D : MonoBehaviour
     private void FixedUpdate()
     {
         isGrounded = CheckGrounded();
+        if (isGrounded)
+        {
+            coyoteTimer = coyoteTime;
+        }
+        else
+        {
+            coyoteTimer -= Time.fixedDeltaTime;
+        }
 
         Move();
         Jump();
@@ -150,17 +167,19 @@ public class PlayerController2D : MonoBehaviour
 
     private void Jump()
     {
-        if (!jumpPressed)
+        if (!jumpPressed && jumpBufferTimer <= 0f)
+        {
+            return;
+        }
+
+        if (coyoteTimer <= 0f)
         {
             return;
         }
 
         jumpPressed = false;
-        if (!isGrounded)
-        {
-            return;
-        }
-
+        jumpBufferTimer = 0f;
+        coyoteTimer = 0f;
         rb.linearVelocity = new Vector2(rb.linearVelocity.x, jumpForce);
     }
 
@@ -177,6 +196,11 @@ public class PlayerController2D : MonoBehaviour
             }
 
             if (hit.collider.transform == transform)
+            {
+                continue;
+            }
+
+            if (hit.collider.isTrigger)
             {
                 continue;
             }
@@ -338,10 +362,8 @@ public class PlayerController2D : MonoBehaviour
 
     public void ExternalJumpPress()
     {
-        if (isGrounded)
-        {
-            jumpPressed = true;
-        }
+        jumpPressed = true;
+        jumpBufferTimer = jumpBufferTime;
     }
 
     public void ExternalCartJump()

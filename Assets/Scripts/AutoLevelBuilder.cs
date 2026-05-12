@@ -58,8 +58,8 @@ public class AutoLevelBuilder : MonoBehaviour
         BuildGroundAndPlatforms();
         BuildCodeSection(player);
         BuildMinecartSection(respawnManager);
-        BuildMazeSection(respawnManager, player.transform);
-        BuildFinalSection(player.transform);
+        KeyDoorController doorController = BuildFinalSection(player.transform);
+        BuildMazeSection(respawnManager, player.transform, doorController);
         BuildKillZone(respawnManager);
         BuildUi(respawnManager, player.GetComponent<PlayerController2D>());
         BuildMusicObject();
@@ -170,13 +170,11 @@ public class AutoLevelBuilder : MonoBehaviour
         CreatePlatform("MinecartRailA", new Vector2(31f, 0.2f), new Vector2(8f, 0.5f));
         CreatePlatform("MinecartRailB", new Vector2(37f, 0.2f), new Vector2(8f, 0.5f));
         CreatePlatform("MinecartRailC", new Vector2(43f, 0.2f), new Vector2(8f, 0.5f));
-        CreateCrouchHazard("CartCeiling1", new Vector2(33f, 2.25f), new Vector2(0.45f, 0.8f), respawnManager);
-        CreateJumpHazard("CartFloor1", new Vector2(36.2f, 0.9f), new Vector2(0.35f, 0.35f), respawnManager);
-        CreateCrouchHazard("CartCeiling2", new Vector2(39.5f, 2.25f), new Vector2(0.45f, 0.8f), respawnManager);
-        CreateJumpHazard("CartFloor2", new Vector2(42.8f, 0.9f), new Vector2(0.35f, 0.35f), respawnManager);
+        CreateCrouchHazard("CartCeiling1", new Vector2(33f, 2.75f), new Vector2(0.45f, 0.8f), respawnManager);
+        CreateCrouchHazard("CartCeiling2", new Vector2(39.5f, 2.75f), new Vector2(0.45f, 0.8f), respawnManager);
     }
 
-    private void BuildMazeSection(LevelRespawnManager respawnManager, Transform player)
+    private void BuildMazeSection(LevelRespawnManager respawnManager, Transform player, KeyDoorController doorController)
     {
         Canvas canvas = EnsureCanvas();
         GameObject timerPanel = CreateUiPanel(canvas.transform, "MazeTimerPanel", new Vector2(20f, -200f), new Vector2(300f, 60f), new Color(0f, 0f, 0f, 0.68f));
@@ -194,22 +192,45 @@ public class AutoLevelBuilder : MonoBehaviour
         CreatePlatform("MazeFloor", new Vector2(58f, -1f), new Vector2(16f, 0.8f));
         CreatePlatform("MazeWallLTop", new Vector2(50f, 5f), new Vector2(0.6f, 4f));
         CreatePlatform("MazeWallLBottom", new Vector2(50f, 0f), new Vector2(0.6f, 2.2f));
-        CreatePlatform("MazeWallR", new Vector2(66f, 3f), new Vector2(0.6f, 8f));
-        CreatePlatform("MazeBlock1", new Vector2(55f, 1f), new Vector2(0.8f, 4f));
+        CreatePlatform("MazeWallRTop", new Vector2(66f, 5.2f), new Vector2(0.6f, 3.6f));
+        CreatePlatform("MazeWallRBottom", new Vector2(66f, -0.25f), new Vector2(0.6f, 1.5f));
+        CreatePlatform("MazeBlock1", new Vector2(55f, 0.1f), new Vector2(0.8f, 3.2f));
         CreatePlatform("MazeBlock2", new Vector2(60f, 3f), new Vector2(0.8f, 4f));
-        CreatePlatform("MazeBlock3", new Vector2(63f, 1.5f), new Vector2(0.8f, 4f));
+        CreatePlatform("MazeBlock3", new Vector2(63f, 0.8f), new Vector2(0.8f, 3.2f));
 
-        GameObject avalanche = CreateBox("Avalanche", new Vector2(58f, -3.5f), new Vector2(16f, 1f), new Color(0.4f, 0.4f, 0.4f), true);
-        BoxCollider2D avalancheKill = avalanche.AddComponent<BoxCollider2D>();
-        avalancheKill.isTrigger = true;
-        KillTrigger avalancheTrigger = avalanche.AddComponent<KillTrigger>();
-        avalancheTrigger.Configure(respawnManager);
+        GameObject mazeLockGate = CreatePlatform("MazeEntryGate", new Vector2(50f, 2f), new Vector2(0.6f, 1.8f));
+        mazeLockGate.SetActive(false);
+
+        GameObject lockTrigger = new GameObject("MazeEntryLockTrigger");
+        lockTrigger.transform.SetParent(transform);
+        lockTrigger.transform.position = new Vector3(51.2f, 0.5f, 0f);
+        BoxCollider2D lockCollider = lockTrigger.AddComponent<BoxCollider2D>();
+        lockCollider.isTrigger = true;
+        lockCollider.size = new Vector2(1f, 3.2f);
+        ActivateObjectOnPlayerTrigger lockScript = lockTrigger.AddComponent<ActivateObjectOnPlayerTrigger>();
+        lockScript.Configure(mazeLockGate, true);
+
+        GameObject spawnedKey = CreateKeyPickup("MazeSpawnedKey", new Vector2(60f, 5.6f), doorController);
+        spawnedKey.SetActive(false);
+        GameObject keySpawnTrigger = new GameObject("MazeKeySpawnTrigger");
+        keySpawnTrigger.transform.SetParent(transform);
+        keySpawnTrigger.transform.position = new Vector3(63f, 2.55f, 0f);
+        BoxCollider2D keySpawnCollider = keySpawnTrigger.AddComponent<BoxCollider2D>();
+        keySpawnCollider.isTrigger = true;
+        keySpawnCollider.size = new Vector2(1.3f, 0.6f);
+        ActivateObjectOnPlayerTrigger keySpawnScript = keySpawnTrigger.AddComponent<ActivateObjectOnPlayerTrigger>();
+        keySpawnScript.Configure(spawnedKey, true);
+
+        // Exit gate: opens only after maze key is collected.
+        GameObject mazeExitGate = CreatePlatform("MazeExitGate", new Vector2(66f, 1.3f), new Vector2(0.6f, 1.9f));
+        KeyUnlockGate exitUnlock = mazeRoot.AddComponent<KeyUnlockGate>();
+        exitUnlock.Configure(doorController, mazeExitGate);
 
         VerticalMazeController maze = mazeRoot.AddComponent<VerticalMazeController>();
-        maze.Configure(timerText, avalanche, respawnManager);
+        maze.Configure(timerText, null, respawnManager);
 
         CreatePlatform("MazeEntryBridge", new Vector2(48f, -1f), new Vector2(4f, 0.45f));
-        CreateWorldLabel("MazeEntryText", "Вход в лабиринт ->", new Vector2(46f, 1f), 2.2f, Color.white);
+        CreateWorldLabel("MazeEntryText", "Вход в лабиринт ->", new Vector2(46f, 2.8f), 1.35f, Color.white);
         BuildMiniMap(canvas.transform, player);
     }
 
@@ -231,7 +252,7 @@ public class AutoLevelBuilder : MonoBehaviour
         marker.Configure(player, markerRect, new Vector2(48f, -3f), new Vector2(90f, 8f), new Vector2(-70f, -70f), new Vector2(70f, 70f));
     }
 
-    private void BuildFinalSection(Transform player)
+    private KeyDoorController BuildFinalSection(Transform player)
     {
         Canvas canvas = EnsureCanvas();
         Text keyText = CreateText(canvas.transform, "KeyCounter", "Ключи: 0/1", new Vector2(160f, -210f), 20);
@@ -245,12 +266,6 @@ public class AutoLevelBuilder : MonoBehaviour
         KeyDoorController doorController = keySystem.AddComponent<KeyDoorController>();
         doorController.Configure(keyText, completeText, 1, string.Empty);
 
-        GameObject key = CreateBox("CorrectKey", new Vector2(84f, 1.2f), new Vector2(0.6f, 0.6f), Color.yellow, true);
-        CircleCollider2D keyTrigger = key.AddComponent<CircleCollider2D>();
-        keyTrigger.isTrigger = true;
-        KeyCollectible collectible = key.AddComponent<KeyCollectible>();
-        collectible.Configure(doorController);
-
         GameObject exitZone = new GameObject("ExitZone");
         exitZone.transform.SetParent(transform);
         exitZone.transform.position = new Vector3(89.5f, 1f, 0f);
@@ -259,6 +274,7 @@ public class AutoLevelBuilder : MonoBehaviour
         exitTrigger.isTrigger = true;
         DoorExitTrigger exit = exitZone.AddComponent<DoorExitTrigger>();
         exit.Configure(doorController, doorVisual);
+        return doorController;
     }
 
     private void BuildKillZone(LevelRespawnManager respawnManager)
@@ -304,18 +320,9 @@ public class AutoLevelBuilder : MonoBehaviour
         Button rideButton = CreateCenteredButton(ridePanel.transform, "RideButton", "Ехать", new Vector2(0f, -18f), new Vector2(140f, 42f));
         ridePanel.SetActive(false);
 
-        GameObject cartActionPanel = CreateUiPanel(canvas.transform, "CartActionPanel", new Vector2(0f, -230f), new Vector2(360f, 95f), new Color(0f, 0f, 0f, 0.78f));
-        Button jumpButton = CreateCenteredButton(cartActionPanel.transform, "CartJumpButton", "Прыжок", new Vector2(-85f, 0f), new Vector2(140f, 48f));
-        Button crouchButton = CreateCenteredButton(cartActionPanel.transform, "CartCrouchButton", "Присесть", new Vector2(85f, 0f), new Vector2(140f, 48f));
-        cartActionPanel.SetActive(false);
-
-        jumpButton.onClick.AddListener(playerController.ExternalCartJump);
-        AddHoldButtonEvents(crouchButton, () => playerController.SetExternalCrouch(true), () => playerController.SetExternalCrouch(false));
-
         if (minecartRide != null)
         {
             minecartRide.ConfigureRideButton(ridePanel, rideButton);
-            minecartRide.ConfigureActionPanel(cartActionPanel);
         }
     }
 
@@ -634,6 +641,24 @@ public class AutoLevelBuilder : MonoBehaviour
         }
 
         return go;
+    }
+
+    private GameObject CreateKeyPickup(string name, Vector2 position, KeyDoorController doorController)
+    {
+        GameObject key = new GameObject(name, typeof(SpriteRenderer), typeof(CircleCollider2D), typeof(KeyCollectible));
+        key.transform.SetParent(transform);
+        key.transform.position = position;
+        key.transform.localScale = Vector3.one * 0.9f;
+        SpriteRenderer renderer = key.GetComponent<SpriteRenderer>();
+        renderer.sprite = SpriteFactory.Key;
+        renderer.color = new Color(1f, 0.88f, 0.15f);
+        renderer.sortingOrder = 8;
+        CircleCollider2D trigger = key.GetComponent<CircleCollider2D>();
+        trigger.isTrigger = true;
+        trigger.radius = 0.55f;
+        KeyCollectible collectible = key.GetComponent<KeyCollectible>();
+        collectible.Configure(doorController);
+        return key;
     }
 
     private void CreateWorldLabel(string name, string message, Vector2 position, float scale, Color color)
